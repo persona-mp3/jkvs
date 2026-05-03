@@ -4,22 +4,34 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class KVStore {
-	private Map<String, String> values;
 
-	public void init(){
-		this.values = new HashMap<String, String>();
-	}
+    private HashMap<String, String> values;
 
-	public String get(String key) {
-		return values.get(key);
-	}
+    public static final String GET_COMMAND = "get";
+    public static final String SET_COMMAND = "set";
+    public static final String REMOVE_COMMAND = "rm";
+    public static final String VERSION_COMMAND = "-V";
 
-	public String set(String key, String value) {
-		return values.put(key, value);
-	}
+    public void init() {
+        this.values = new HashMap<String, String>();
+    }
 
-	public String remove(String key) {
-		return values.remove(key);
-	}
+    public String get(String key) {
+        return values.get(key);
+    }
 
+    public String set(String key, String value) {
+        return values.put(key, value);
+    }
+
+    public String remove(String key) {
+        return values.remove(key);
+    }
+
+    public void debug() {
+        for (String key : values.keySet()) {
+            System.out.println("  kv_store debug");
+            System.out.printf("   %s :: %s\n", key, values.get(key));
+        }
+    }
 }
