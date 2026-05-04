@@ -41,13 +41,17 @@ class Main {
 			return;
 		}
 
-		kv_store.init();
-
 		Args kv_args = new Args(args[0], args[1], args[2]);
-		parse_command(kv_args);
+		try {
+			kv_store.init();
+			parse_command(kv_args);
+		} catch (Exception err) {
+			std.eprintln("An error occured");
+			std.eprintln(err);
+		}
 	}
 
-	public static void parse_command(Args args) {
+	public static void parse_command(Args args) throws Exception {
 		switch (args.command) {
 			case KVStore.GET_COMMAND:
 				std.println("parse_command:: get");
