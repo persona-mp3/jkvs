@@ -49,13 +49,14 @@ public class KVLib {
 	public long append_to_log(Path wal, String command, String key, String value) throws IOException {
 		RandomAccessFile wal_file = new RandomAccessFile(wal.toString(), "rw");
 		// Start at the end of the file to append the new log
+
+		long log_pointer = wal_file.length();
 		wal_file.seek(wal_file.length());
 
 		// <set> <key> <value> $\r\n
 		byte[] content = std.encoder(command, key, value);
 		wal_file.write(content);
 
-		long log_pointer = wal_file.getFilePointer();
 		wal_file.close();
 		std.println("written to log file");
 

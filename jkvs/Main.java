@@ -1,5 +1,9 @@
 package jkvs;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import jkvs.lib.*;
 
 class Main {
@@ -30,18 +34,25 @@ class Main {
 
 	static KVStore kv_store = new KVStore();
 
-	public static void main(String[] args) {
-		if (args.length == 1 && args[0].contains("-v")) {
+	public static void main(String[] stdargs) {
+		List<String> args = new ArrayList<>(Arrays.asList(stdargs));
+
+		if (args.size() == 1 && args.get(0).contains("-v")) {
 			std.println("jkvs version " + VERSION);
 			return;
 		}
 
-		if (args.length < 3) {
+		if (args.size() > 3) {
 			std.eprintln("inavlid usage, kvs <command> <key> <value>");
 			return;
 		}
 
-		Args kv_args = new Args(args[0], args[1], args[2]);
+		if (args.get(0).equals(KVStore.GET_COMMAND) || args.get(0).equals(KVStore.REMOVE_COMMAND)) {
+			args.add("");
+		}
+
+		Args kv_args = new Args(args.get(0), args.get(1), args.get(2));
+
 		try {
 			kv_store.init();
 			parse_command(kv_args);
@@ -54,16 +65,13 @@ class Main {
 	public static void parse_command(Args args) throws Exception {
 		switch (args.command) {
 			case KVStore.GET_COMMAND:
-				std.println("parse_command:: get");
 				String result = kv_store.get(args.key);
 				std.println(result);
 				break;
 			case KVStore.SET_COMMAND:
-				std.printf("parse_command:: set %s %s\n", args.key, args.value);
 				kv_store.set(args.key, args.value);
 				break;
 			case KVStore.REMOVE_COMMAND:
-				std.printf("parse_command:: rm %s\n", args.key);
 				kv_store.remove(args.key);
 				break;
 

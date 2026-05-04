@@ -25,7 +25,10 @@ public class KVStore {
 	public void init() throws IOException {
 		this.values = new HashMap<String, String>();
 
-		std.println("initialising log directory..\n");
+		if (Files.exists(LOG_DIR)) {
+			return;
+		}
+		std.println("creating log directories");
 		Files.createDirectories(LOG_DIR);
 	}
 
@@ -38,8 +41,35 @@ public class KVStore {
 	}
 
 	/// Returns null when record for key is not found
-	public String get(String key) {
-		return values.get(key);
+	public String get(String key) throws IOException {
+
+		try (RandomAccessFile raf = new RandomAccessFile(WAL_FILE.toString(), "r")) {
+			HashMap<String, Long> memory_index = kvlib.rebuild_index(INDEX_FILE, " ");
+			if (!memory_index.containsKey(key)) {
+				return null;
+			}
+
+			Long log_pointer = memory_index.get(key);
+			raf.seek(log_pointer);
+			String record = raf.readLine();
+
+			// todo: This is fragile, but aslong as the encoder stays predictabel and
+			// correct, this is safe
+			String[] parsed = record.replaceAll("$\r\n", "").split(" ");
+			if (parsed.length < 4) {
+				std.eprintf("log record formatted to array has unexpected format: %d\n ", parsed.length);
+				for (String value : parsed) {
+					std.eprintf(" %s\n", value);
+				}
+				throw new RuntimeException("KVStore::get:: Unexpected log format error");
+			}
+
+			return parsed[2].replaceAll("\"", "");
+		} catch (Exception err) {
+			std.eprintln("KVStore::get:: Error");
+			throw new RuntimeException(err);
+		}
+
 	}
 
 	public String remove(String key) throws IOException {
