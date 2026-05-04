@@ -54,7 +54,7 @@ public class KVStore {
 			}
 
 			long log_pointer = kvlib.append_to_log(WAL_FILE, REMOVE_COMMAND, key, "");
-			kvlib.append_to_index(INDEX_FILE, REMOVE_COMMAND, log_pointer);
+			kvlib.append_to_index(INDEX_FILE, key, log_pointer);
 
 		} catch (Exception err) {
 			throw new RuntimeException(err);
