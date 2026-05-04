@@ -53,7 +53,7 @@ public class KVStore {
 			raf.seek(log_pointer);
 			String record = raf.readLine();
 
-			// todo: This is fragile, but aslong as the encoder stays predictabel and
+			// todo: This is fragile, but aslong as the encoder stays predictable and
 			// correct, this is safe
 			String[] parsed = record.replaceAll("$\r\n", "").split(" ");
 			if (parsed.length < 4) {
