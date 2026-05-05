@@ -13,6 +13,7 @@ public class KVStore {
 	private final Path LOG_DIR = Paths.get("logs");
 	private final Path INDEX_FILE = LOG_DIR.resolve("index.txt");
 	private final Path WAL_FILE = LOG_DIR.resolve("log.wal");
+	private final String INDEX_LOG_DELIMITER = " ";
 
 	public static final String GET_COMMAND = "get";
 	public static final String SET_COMMAND = "set";
@@ -26,6 +27,8 @@ public class KVStore {
 		this.values = new HashMap<String, String>();
 
 		if (Files.exists(LOG_DIR)) {
+			// load the index into the memory and make all operations read from it
+			kvlib.rebuild_index(INDEX_FILE, INDEX_LOG_DELIMITER);
 			return;
 		}
 		std.println("creating log directories");

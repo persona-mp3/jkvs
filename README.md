@@ -1,5 +1,7 @@
 ### jkvs - Key Value Store in Java
-Building a distributed key-value store database following [Pingcap's Talent Plan](https://github.com/pingcap/talent-plan)
+Building a distributed key-value store database following [Pingcap's Talent Plan](https://github.com/pingcap/talent-plan), which
+is intentionally meant for Rust. I'll be porting all the tests too later on down the project as correctness will be more favoured than 
+speed
 
 ### Clone the repo
 ```bash
