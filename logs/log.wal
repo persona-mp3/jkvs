@@ -4,3 +4,6 @@ set username "muscleman" $
 set show "regular_show" $
 set username "party_peep" $
 rm username "" $
+set username "fetty-wap" $
+rm username "" $
+rm username "" $
