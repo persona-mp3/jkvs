@@ -5,6 +5,9 @@ public class Std {
 		System.out.println(s);
 	}
 
+	public void debug(Object s) {
+		System.out.println(" DEBUG:: " + s);
+	}
 	public void printf(String fmt, Object... s) {
 		System.out.printf(fmt, s);
 	}

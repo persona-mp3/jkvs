@@ -27,7 +27,7 @@ compile() {
   rm -rf $TARGET
   mkdir -p $TARGET
 
-  javac -d $TARGET jkvs/Main.java jkvs/lib/KVStore.java jkvs/Std.java
+  javac -d $TARGET jkvs/Main.java jkvs/lib/JKVStore.java jkvs/Std.java
 }
 
 compile_tests() {
@@ -70,63 +70,6 @@ case "$1" in
     ;;
 
 esac
-# set -e
-#
-# TARGET=target
-# LIB=lib
-#
-# MAIN_CLASS="jkvs.Main"
-# MAIN_FILE="jkvs/Main.java"
-#
-# # -------- helpers --------
-# compile() {
-#   echo "Compiling source..."
-#   rm -rf $TARGET
-#   mkdir -p $TARGET
-#
-#   javac -d $TARGET jkvs/Main.java jkvs/lib/KVStore.java jkvs/Std.java
-# }
-#
-# compile_tests() {
-#   echo "Compiling tests..."
-#   javac -cp "$TARGET:$LIB/*" -d $TARGET tests/jkvs/Main.java
-# }
-#
-# run_tests() {
-#   echo "Running tests..."
-#   java -jar $LIB/junit-platform-console-standalone.jar \
-#     --class-path "$TARGET" \
-#     --scan-classpath
-# }
-#
-# run_app() {
-#   echo "Running app..."
-#   java -cp "$TARGET" $MAIN_CLASS "$@"
-# }
-#
-# # -------- commands --------
-# case "$1" in
-#
-#   test)
-#     compile
-#     compile_tests
-#     run_tests
-#     ;;
-#
-#   run)
-#     shift
-#     compile
-#     run_app "$@"
-#     ;;
-#
-#   *)
-#     echo "Usage:"
-#     echo "  ./build.sh test        # compile + run tests"
-#     echo "  ./build.sh run args    # compile + run program"
-#     exit 1
-#     ;;
-#
-# esac
 # set -e
 #
 # rm -rf target

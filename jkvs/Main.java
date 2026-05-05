@@ -32,7 +32,7 @@ class Main {
 		}
 	}
 
-	static KVStore kv_store = new KVStore();
+	static JKVStore jkvStore = new JKVStore();
 
 	public static void main(String[] stdargs) {
 		List<String> args = new ArrayList<>(Arrays.asList(stdargs));
@@ -47,14 +47,14 @@ class Main {
 			return;
 		}
 
-		if (args.get(0).equals(KVStore.GET_COMMAND) || args.get(0).equals(KVStore.REMOVE_COMMAND)) {
+		if (args.get(0).equals(JKVStore.GET_COMMAND) || args.get(0).equals(JKVStore.REMOVE_COMMAND)) {
 			args.add("");
 		}
 
 		Args kv_args = new Args(args.get(0), args.get(1), args.get(2));
 
 		try {
-			kv_store.init();
+			jkvStore.init();
 			parse_command(kv_args);
 		} catch (Exception err) {
 			std.eprintln("An error occured");
@@ -64,15 +64,15 @@ class Main {
 
 	public static void parse_command(Args args) throws Exception {
 		switch (args.command) {
-			case KVStore.GET_COMMAND:
-				String result = kv_store.get(args.key);
+			case JKVStore.GET_COMMAND:
+				String result = jkvStore.get(args.key);
 				std.println(result);
 				break;
-			case KVStore.SET_COMMAND:
-				kv_store.set(args.key, args.value);
+			case JKVStore.SET_COMMAND:
+				jkvStore.set(args.key, args.value);
 				break;
-			case KVStore.REMOVE_COMMAND:
-				kv_store.remove(args.key);
+			case JKVStore.REMOVE_COMMAND:
+				jkvStore.remove(args.key);
 				break;
 
 			default:

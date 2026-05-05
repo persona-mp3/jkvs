@@ -58,7 +58,6 @@ public class KVLib {
 		wal_file.write(content);
 
 		wal_file.close();
-		std.println("written to log file");
 
 		return log_pointer;
 
@@ -71,6 +70,5 @@ public class KVLib {
 		byte[] content = String.format("%s %s\n", key, log_pointer).getBytes();
 		raf.write(content);
 		raf.close();
-		std.printf("written to %s sucessfully\n", index_file.toString());
 	}
 }
