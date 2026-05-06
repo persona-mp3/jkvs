@@ -12,9 +12,11 @@ public class JKVStore {
 	private HashMap<String, Long> memoryIndex;
 	private final Path LOG_DIR = Paths.get("logs");
 	private final Path INDEX_FILE = LOG_DIR.resolve("index.txt");
-	private final String INDEX_FILE_DELIM = " ";
 	private final Path WAL_FILE = LOG_DIR.resolve("log.wal");
+	private final String INDEX_FILE_DELIM = " ";
 	private final int MAX_LOG_FILE_SIZE_MB = 1 * 1024 * 1024;
+
+	private final int LOG_FILE_LIMIT_MB = 1 * 1024;
 
 	/// Usage: jkvs GET <KEY>
 	public static final String GET_COMMAND = "get";
@@ -58,6 +60,13 @@ public class JKVStore {
 			// Step 1. Check logSize
 			// Step 2. If logSize > MAX_FILE_LOG_SIZE_MB then compactLogs
 			// Step 3. Else, rebuildIndex
+			long file_size = WAL_FILE.toFile().length();
+			if (file_size >= MAX_LOG_FILE_SIZE_MB) {
+				Path dest = Path.of("new_log.wal");
+				std.println("compacting logs");
+				kvlib.log_compaction(WAL_FILE, INDEX_FILE, dest);
+			}
+
 			memoryIndex = kvlib.rebuild_index(INDEX_FILE, INDEX_FILE_DELIM);
 			std.println("Rebuilding index logs...\n\n");
 
@@ -93,7 +102,6 @@ public class JKVStore {
 				RandomAccessFile raf = new RandomAccessFile(WAL_FILE.toString(), "r")) {
 			raf.seek(log_pointer);
 
-			kvlib.compact_log(WAL_FILE, Path.of("null"));
 			String record = raf.readLine();
 
 			if (record.contains(REMOVE_COMMAND)) {

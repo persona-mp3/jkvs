@@ -1,14 +1,3 @@
-set username "spring_water" $
+set usename "chicken" $
+set username "camron" $
 rm username "" $
-rm username "" $
-rm username "" $
-rm username "" $
-rm username "" $
-rm username "" $
-rm username "" $
-rm username "" $
-set username "Tyle the creator" $
-rm username "" $
-set track "Turn Echo - Kaikobad" $
-set track "James Huddo" $
-rm track "" $

@@ -1,15 +1,18 @@
 package jkvs.lib;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.nio.file.*;
 import java.io.*;
-import java.io.IOException;
+
 import jkvs.Std;
 import jkvs.utils.*;
 
 public class KVLib {
-
 	Std std = new Std();
+
+	private Path PAST_LOGS_DIR = Path.of("past_logs");
 
 	/// For now, I'd want us to stream the whole file into memory, But later on I'd
 	/// want to experiement with using it like a search, ie as we're reading each
@@ -73,38 +76,32 @@ public class KVLib {
 		raf.close();
 	}
 
-	// Step 1. We need to rebuild the log file, by reading from the bottom,
-	// and append each entry to a hashMap
-	// Step 2. If an entry we find already exists backUp and we ignore it
-	// Step 3 -> for (rm) commands,
-	// Step 4 -> Write each entry to the new_log_file, and create a new index file
-	// 1. Rebuild wal into map
-	public void compact_log(Path src, Path dest) throws IOException {
-		try (SimpleReversedReader srr = new SimpleReversedReader(src.toString())) {
+	public void log_compaction(Path src, Path src_index_file, Path dest) throws IOException {
+		// Step 1. Rebuild logs and eliminate duplicates using a hashmap and reading in
+		// reverse
+		final int MIN_LENGTH_OF_PARSED_LOG = 4;
 
-			String log = null;
-			HashMap<String, String> temp_log = new HashMap<>();
+		std.debug("dest_file -> " + src.toString());
+		HashMap<String, String> compacted_logs = new HashMap<>();
+		String log = "";
+		std.debug("startinng loop -> ");
+		if (Files.exists(src)) {
+			std.debug("normal file exists ");
+		} else {
+			std.debug("normal file  doesnt exists ");
+		}
+		try (
+				SimpleReversedReader srr = new SimpleReversedReader(src.toString());) {
 
+			std.debug("constructed srr ");
 			while ((log = srr.readLine()) != null) {
 				if (log.isEmpty() || log.isBlank()) {
+					std.debug("empty log");
 					continue;
 				}
 
-				String[] parsed_logs = log.split(" ");
-
-				// Yeah this isn't good, at somepoint using JSON as the codec would have been
-				// way more easier
-				// I wasn't sure JSON would be the best pick, but couldn't think of a better
-				// encoding yet
-				final int MIN_LENGTH_OF_PARSED_LOG = 4;
-
-				// Throwing an error here might seem like overkill, but at some point
-				// skipping past broken records means our database accuracy has dropped by over
-				// 80%. And that is bad. This way, we could recover from the error, and defer
-				// compacting and just continue with the database. We log out the error,
-				// hopefully
-				// someone sees it and fixes it
-				if (parsed_logs.length < MIN_LENGTH_OF_PARSED_LOG) {
+				String[] parsed_log = log.split(" ");
+				if (parsed_log.length < MIN_LENGTH_OF_PARSED_LOG) {
 					throw new RuntimeException(String.format(
 							"JKVSLib::compact_log:: Length of parsed log is less than the MIN %d\n, ",
 							"%s\n %s\n %s\n %s\n",
@@ -114,19 +111,78 @@ public class KVLib {
 							"3. Distributed systems behaving like distributed systems (we don't know the reason)"));
 				}
 
-				// <cmd> <key> <value>?
-				String key = parsed_logs[1];
-				temp_log.putIfAbsent(key, log);
+				String key = parsed_log[1];
+				compacted_logs.putIfAbsent(key, log);
 			}
 
-			std.println("done compacting");
-			std.println(temp_log);
+			std.debug("done compacting");
+			std.debug(compacted_logs);
 
-			// Now we can iter through the map, and append each line to the src
+			// Write each entry to the dest file, and create new index
+			// So on renaming, we should a folder called, past_logs/
+			// and inside past_logs/ we can have subdirs that contain previous logs
+			// past_logs/
+			// log_2008-09-13/ - log.wal, index.txt
+			// log_2008-09-21/ - log.wal, index.txt
+			// log_2008-10-01/ - log.wal, index.txt
 
-			// Write compacted log to file
+			if (!Files.exists(PAST_LOGS_DIR)) {
+				Files.createDirectory(PAST_LOGS_DIR);
+				std.println("creating past_logs_dir to store original logs...");
+			}
+
+			// using ISO Date format with time
+			LocalDateTime current_date = LocalDateTime.now();
+			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+			String parent_dir_name = String.format("%s_%s", "log", current_date.format(formatter));
+			std.println("saving log under name:: " + parent_dir_name);
+			Path parent_path = PAST_LOGS_DIR.resolve(parent_dir_name);
+			// NOTE: If a folder w the exact same name already exists, then theres a
+			// problem, we might have to use nano-seconds in the filename then because
+			// collissions could be possble
+
+			if (Files.exists(parent_path)) {
+				std.printf("JKVS::compact_logs:: [WARN] %s already exists!\n", parent_path);
+				Files.createDirectory(parent_path);
+				std.println("creating past_logs_dir to store original logs...");
+			}
+
+			Files.createDirectory(parent_path);
+
+			// 1. Move the wal file first
+			Path src_move_destination = parent_path.resolve(src.getFileName());
+			Files.createFile(src_move_destination);
+			std.debug("creating -> " + src_move_destination.toString());
+
+			src_move_destination = Files.move(src, src_move_destination, StandardCopyOption.ATOMIC_MOVE,
+					StandardCopyOption.REPLACE_EXISTING);
+
+			// 2. Move its index there
+			Path index_move_destination = parent_path.resolve(src_index_file.getFileName());
+			Files.createFile(index_move_destination);
+			std.debug("creating -> " + index_move_destination.toString());
+			index_move_destination = Files.move(src_index_file, index_move_destination, StandardCopyOption.ATOMIC_MOVE,
+					StandardCopyOption.REPLACE_EXISTING);
+
+			// 3. We can begin writing to the src
+			RandomAccessFile raf = new RandomAccessFile(src.toString(), "rw");
+			long log_pointer = raf.length();
+			std.printf("size of log pointer after compaction %d\n", log_pointer);
+
+			// 4. Create the new index file
+			Files.createFile(src_index_file);
+
+			for (String key : compacted_logs.keySet()) {
+				String cmd = compacted_logs.get(key);
+				// Later on might want to refactor to avoid closoing and opening it on every
+				// write
+				raf.write(cmd.getBytes());
+				log_pointer = raf.length();
+				append_to_index(src_index_file, key, log_pointer);
+			}
+
 		} catch (Exception err) {
-			std.eprintf("JKVS::comapact_log:: Unexpected error");
+			std.eprintln("JKVSLib::log_compaction:: Unexpected error");
 			throw new RuntimeException(err);
 		}
 	}

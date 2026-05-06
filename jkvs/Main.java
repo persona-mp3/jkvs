@@ -57,8 +57,8 @@ class Main {
 			jkvStore.init();
 			parse_command(kv_args);
 		} catch (Exception err) {
-			std.eprintln("An error occured");
 			std.eprintln(err);
+			err.printStackTrace();
 		}
 	}
 
