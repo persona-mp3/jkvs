@@ -48,14 +48,87 @@ Concern:: Reading a whole index file into memory isn't always the best thing, so
     While the main.log is fine and possibly correct, the append.log might not be.
 
 
-3. Or when we want to compact, we can read the main.log file in reverse, and append them to the new logfile 
-    but instead we'll use a HashMap. For each line we read, we append it to the HashMap. And then write everything to the new index file
+3. Or when we want to compact, we can read the main.log file in reverse, and
+   append them to the new logfile but instead we'll use a HashMap. 
+   
+   1. For each line we read, we append it to the HashMap. And then write
+   everything to the
+   new index file
 
     Scenarios:
-    1. If we encounter a <rm> <key> log before the log itself, we'll have an ignore_list that we can compare each log_line against. 
+    1. If we encounter a <rm> <key> log before the log itself, we'll have an
+       ignore_list that we can compare each log_line against. 
     2. If we encounter a <rm> <key> log after the log iteself, we ignore it
 
 
 
-In all of these scenarions, we have to maintain two-files at a time. And copying and reading could fail at anytime
-If we were to do it inplace, this would pose more risk, as the original log file is corrupted and data can't be replayed/rebuilt
+In all of these scenarions, we have to maintain two-files at a time. And
+copying and reading could fail at anytime If we were to do it inplace, this
+would pose more risk, as the original log file is corrupted and data can't be
+replayed/rebuilt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+username 0
+username 31
+username 49
+username 67
+username 85
+username 103
+username 121
+username 139
+username 157
+username 175
+username 210
+track 228
+track 264
+track 291
+
+
+If we started reading this index file from top

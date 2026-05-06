@@ -61,7 +61,6 @@ public class JKVStore {
 			memoryIndex = kvlib.rebuild_index(INDEX_FILE, INDEX_FILE_DELIM);
 			std.println("Rebuilding index logs...\n\n");
 
-
 		} catch (Exception err) {
 			std.eprintln("KVStore::resumeStore:: Unexpected error occured");
 			throw new RuntimeException(err);
@@ -94,6 +93,7 @@ public class JKVStore {
 				RandomAccessFile raf = new RandomAccessFile(WAL_FILE.toString(), "r")) {
 			raf.seek(log_pointer);
 
+			kvlib.compact_log(WAL_FILE, Path.of("null"));
 			String record = raf.readLine();
 
 			if (record.contains(REMOVE_COMMAND)) {
@@ -112,6 +112,8 @@ public class JKVStore {
 				throw new RuntimeException("KVStore::get::Unexpected log format");
 			}
 
+			// Experiment, While reading apache's ReversedFileReader, found this
+			// System.arraycopy() try impl here
 			String value = String.join(" ", Arrays.copyOfRange(parsed_log, 2, parsed_log.length - 1));
 
 			return value.replaceAll("\"", "");

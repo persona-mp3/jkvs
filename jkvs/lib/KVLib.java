@@ -5,6 +5,7 @@ import java.nio.file.*;
 import java.io.*;
 import java.io.IOException;
 import jkvs.Std;
+import jkvs.utils.*;
 
 public class KVLib {
 
@@ -71,4 +72,63 @@ public class KVLib {
 		raf.write(content);
 		raf.close();
 	}
+
+	// Step 1. We need to rebuild the log file, by reading from the bottom,
+	// and append each entry to a hashMap
+	// Step 2. If an entry we find already exists backUp and we ignore it
+	// Step 3 -> for (rm) commands,
+	// Step 4 -> Write each entry to the new_log_file, and create a new index file
+	// 1. Rebuild wal into map
+	public void compact_log(Path src, Path dest) throws IOException {
+		try (SimpleReversedReader srr = new SimpleReversedReader(src.toString())) {
+
+			String log = null;
+			HashMap<String, String> temp_log = new HashMap<>();
+
+			while ((log = srr.readLine()) != null) {
+				if (log.isEmpty() || log.isBlank()) {
+					continue;
+				}
+
+				String[] parsed_logs = log.split(" ");
+
+				// Yeah this isn't good, at somepoint using JSON as the codec would have been
+				// way more easier
+				// I wasn't sure JSON would be the best pick, but couldn't think of a better
+				// encoding yet
+				final int MIN_LENGTH_OF_PARSED_LOG = 4;
+
+				// Throwing an error here might seem like overkill, but at some point
+				// skipping past broken records means our database accuracy has dropped by over
+				// 80%. And that is bad. This way, we could recover from the error, and defer
+				// compacting and just continue with the database. We log out the error,
+				// hopefully
+				// someone sees it and fixes it
+				if (parsed_logs.length < MIN_LENGTH_OF_PARSED_LOG) {
+					throw new RuntimeException(String.format(
+							"JKVSLib::compact_log:: Length of parsed log is less than the MIN %d\n, ",
+							"%s\n %s\n %s\n %s\n",
+							" Possible Reason",
+							"1. Logs may have been corrupted",
+							"2. Codec may have changed",
+							"3. Distributed systems behaving like distributed systems (we don't know the reason)"));
+				}
+
+				// <cmd> <key> <value>?
+				String key = parsed_logs[1];
+				temp_log.putIfAbsent(key, log);
+			}
+
+			std.println("done compacting");
+			std.println(temp_log);
+
+			// Now we can iter through the map, and append each line to the src
+
+			// Write compacted log to file
+		} catch (Exception err) {
+			std.eprintf("JKVS::comapact_log:: Unexpected error");
+			throw new RuntimeException(err);
+		}
+	}
+
 }
