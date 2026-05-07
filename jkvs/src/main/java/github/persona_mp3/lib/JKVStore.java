@@ -40,7 +40,7 @@ public class JKVStore {
 	JKVLib jkvlib = new JKVLib();
 
 	public void init() throws IOException {
-		std.println("initialising store...");
+		logger.info("initialising store...");
 
 		if (Files.exists(LOG_DIR)
 				&& Files.exists(LOG_FILE)
@@ -70,7 +70,7 @@ public class JKVStore {
 		long fileSize = LOG_FILE.toFile().length();
 		if (fileSize >= MAX_SIZE_MB) {
 			logger.info("log compaction triggered, log-size: {}", fileSize);
-			jkvlib.compactLogs();
+			jkvlib.compactLogs(LOG_FILE, INDEX_FILE);
 		}
 
 		memoryIndex = jkvlib.rebuildIndex(INDEX_FILE, " ");
@@ -79,7 +79,7 @@ public class JKVStore {
 	}
 
 	public String set(String key, String value) throws IOException {
-		logger.debug("set-command: {}::{}",  key , value);
+		logger.debug("set-command: {}::{}", key, value);
 		long logPointer = jkvlib.appendToLogFile(LOG_FILE, SET_COMMAND, key, value);
 		jkvlib.appendToIndexFile(INDEX_FILE, key, logPointer);
 		memoryIndex.put(key, logPointer);
@@ -87,7 +87,7 @@ public class JKVStore {
 	}
 
 	public String get(String key) throws IOException {
-		logger.debug("get-command: {}",  key);
+		logger.debug("get-command: {}", key);
 		if (!memoryIndex.containsKey(key)) {
 			return null;
 		}
@@ -100,7 +100,10 @@ public class JKVStore {
 			raf = new RandomAccessFile(LOG_FILE.toString(), "r");
 			raf.seek(logPointer);
 			String record = raf.readLine();
-			if (record.contains(REMOVE_COMMAND)) {
+			// could have been a nasty but with record.contains(RM_COMMAND)
+			// if you did set env terminal, this record would be deleted, because terminal
+			// contains rm
+			if (record.split(" ")[0].equals(REMOVE_COMMAND)) {
 				std.printf("%s not found\n", key);
 				return null;
 			}
