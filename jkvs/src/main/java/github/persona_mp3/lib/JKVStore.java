@@ -75,7 +75,6 @@ public class JKVStore {
 
 		memoryIndex = jkvlib.rebuildIndex(INDEX_FILE, " ");
 		logger.info("log rebuilt successfully");
-		logger.info("{}", memoryIndex);
 	}
 
 	public String set(String key, String value) throws IOException {
