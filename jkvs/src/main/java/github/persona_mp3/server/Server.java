@@ -38,7 +38,7 @@ public class Server {
 
 			while (true) {
 				Socket conn = listener.accept();
-				logger.info("accpeted connection from localAddr={}", conn.getClass());
+				logger.info("accpeted connection from localAddr={}", conn.getRemoteSocketAddress());
 
 				handleConn(conn);
 			}
@@ -53,7 +53,7 @@ public class Server {
 	static void handleConn(Socket conn) {
 		try (
 				BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-				PrintWriter pr = new PrintWriter(conn.getOutputStream());) {
+				PrintWriter pr = new PrintWriter(conn.getOutputStream(), true);) {
 			ObjectMapper mapper = new ObjectMapper();
 			String line;
 

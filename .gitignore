@@ -2,3 +2,5 @@ target/
 jkvs-client
 jkvs-server
 
+jkvs/logs/
+jkvs/archived_logs/
