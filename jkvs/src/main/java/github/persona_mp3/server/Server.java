@@ -1,6 +1,8 @@
 package github.persona_mp3.server;
 
-import github.persona_mp3.Std;
+import github.persona_mp3.server.models.Request;
+import github.persona_mp3.server.models.Response;
+import github.persona_mp3.lib.JKVStore;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -10,31 +12,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Server {
-	static Std std = new Std();
-	// private static Logger logger = LogManager.getLogger();
+	static JKVStore store = new JKVStore();
 	private static Logger logger = LogManager.getLogger(Server.class);
 
-	@Command(name = "ServerConfig")
-	static class Config {
-		@Option(names = "--addr", description = "ip address to run the server", defaultValue = "localhost")
-		public String addr;
-
-		@Option(names = "--port", description = "port to listen on", defaultValue = "9090")
-		public int port;
-
-	}
-
-	// Tasks:
-	// 1. Config server to read from input stream to match a Request model of
-	// Request { String command, String key, String value? }
-	// 2. Integrate Jackson into socket stream to parse json directly
 	// 3. Bring in jkvlib
 	public static void main(String[] args) throws JsonProcessingException {
 		Config config = new Config();
@@ -42,25 +27,22 @@ public class Server {
 
 		cmd.parseArgs(args);
 
-		Object parsedCmd = cmd.getCommand();
-		ObjectMapper mapper = new ObjectMapper();
-		String _jsonRep = mapper.writeValueAsString(parsedCmd);
-		logger.info("json_encoded:: {}", _jsonRep);
-
 		String addr = config.addr;
 		int port = config.port;
-		logger.info("server config provided: addr: {}, port: {}", addr, port);
+		logger.info("server config provided: addr={}, port={}", addr, port);
+		logger.info("Initialising database");
 
 		try (
 				ServerSocket listener = new ServerSocket(port);) {
 
-			logger.info("tcp-server listening @ {}:{}", addr, port);
+			store.init();
+			logger.info("tcp-server listening tcp://{}:{}", addr, port);
 
 			while (true) {
 				Socket conn = listener.accept();
 				logger.info("accpeted connection from localAddr={}", conn.getClass());
 
-				handleConnection(conn);
+				handleConn(conn);
 			}
 		} catch (Exception err) {
 			logger.error("An error occured: {}", err.getMessage());
@@ -68,25 +50,48 @@ public class Server {
 		}
 	}
 
-	static void handleConnection(Socket conn) throws IOException {
+	static void handleConn(Socket conn) throws Exception {
 		try (
 				BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-				PrintWriter writer = new PrintWriter(conn.getOutputStream());) {
-			while (!conn.isClosed() && conn.isConnected()) {
-				String request = reader.readLine();
-				if (request == null) {
-					logger.info("{} has disconnected", conn.getRemoteSocketAddress());
-					break;
-				}
+				PrintWriter pr = new PrintWriter(conn.getOutputStream());) {
+			ObjectMapper mapper = new ObjectMapper();
+			String line;
 
-				logger.info("request from client: {}", request);
+			while ((line = reader.readLine()) != null) {
+				Request req = mapper.readValue(line, Request.class);
+				logger.info("request from conn: {}", req);
 
-				String response = String.format("server:: %s\n", request);
-				writer.println(response);
-				logger.info("response written to client successfully");
-
+				Response response = processRequest(req);
+				pr.println(mapper.writeValueAsString(response));
+				logger.info("wrote response={} to client", response);
 			}
+
+			logger.info("client has disconnected");
 		}
 	}
 
+	static Response processRequest(Request req) throws IOException {
+		logger.info("processing request");
+		Response response = new Response();
+		if (req.command == null) {
+			response.response = "invalid command";
+			return response;
+		}
+		switch (req.command) {
+			case JKVStore.GET_COMMAND:
+				response.response = store.get(req.key);
+				return response;
+
+			case JKVStore.SET_COMMAND:
+				response.response = store.set(req.key, req.value);
+				return response;
+
+			case JKVStore.REMOVE_COMMAND:
+				response.response = store.remove(req.key);
+				return response;
+		}
+
+		response.response = "unknown command";
+		return response;
+	}
 }
