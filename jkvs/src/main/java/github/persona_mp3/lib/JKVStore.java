@@ -40,8 +40,6 @@ public class JKVStore {
 	JKVLib jkvlib = new JKVLib();
 
 	public void init() throws IOException {
-		logger.info("initialising store...");
-
 		if (Files.exists(LOG_DIR)
 				&& Files.exists(LOG_FILE)
 				&& Files.exists(INDEX_FILE)) {
@@ -65,16 +63,16 @@ public class JKVStore {
 	 *
 	 */
 	private void rebuildStore() throws IOException {
-		logger.info("rebuliding logs");
+		logger.info("Rebuliding logs");
 
 		long fileSize = LOG_FILE.toFile().length();
 		if (fileSize >= MAX_SIZE_MB) {
-			logger.info("log compaction triggered, log-size: {}", fileSize);
+			logger.info("Log compaction triggered, log-size: {}", fileSize);
 			jkvlib.compactLogs(LOG_FILE, INDEX_FILE);
 		}
 
 		memoryIndex = jkvlib.rebuildIndex(INDEX_FILE, " ");
-		logger.info("log rebuilt successfully");
+		logger.info("Logs rebuilt successfully. IndexSize={}", memoryIndex.size());
 	}
 
 	public String set(String key, String value) throws IOException {

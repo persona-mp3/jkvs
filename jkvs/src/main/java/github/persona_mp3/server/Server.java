@@ -20,7 +20,6 @@ public class Server {
 	static JKVStore store = new JKVStore();
 	private static Logger logger = LogManager.getLogger(Server.class);
 
-	// 3. Bring in jkvlib
 	public static void main(String[] args) throws JsonProcessingException {
 		Config config = new Config();
 		CommandLine cmd = new CommandLine(config);
@@ -29,7 +28,6 @@ public class Server {
 
 		String addr = config.addr;
 		int port = config.port;
-		logger.info("server config provided: addr={}, port={}", addr, port);
 		logger.info("Initialising database");
 
 		try (
@@ -50,7 +48,9 @@ public class Server {
 		}
 	}
 
-	static void handleConn(Socket conn) throws Exception {
+	// We're catching errors here so the server doesn't stop because of one
+	// conection's error
+	static void handleConn(Socket conn) {
 		try (
 				BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 				PrintWriter pr = new PrintWriter(conn.getOutputStream());) {
@@ -59,19 +59,26 @@ public class Server {
 
 			while ((line = reader.readLine()) != null) {
 				Request req = mapper.readValue(line, Request.class);
-				logger.info("request from conn: {}", req);
+				logger.info("processing request= {} from conn: {}", req, conn.getRemoteSocketAddress());
 
 				Response response = processRequest(req);
 				pr.println(mapper.writeValueAsString(response));
 				logger.info("wrote response={} to client", response);
 			}
 
-			logger.info("client has disconnected");
+			logger.info("client {} has disconnected", conn.getRemoteSocketAddress());
+		} catch (IOException err) {
+			logger.error("IOException occured in handleConn. Summary: {}", err.getMessage());
+			System.err.println("\n");
+			err.printStackTrace();
+		} catch (Exception err) {
+			logger.error("Unexpected exception occured in handleConn. Summary: {}", err.getMessage());
+			System.err.println("\n");
+			err.printStackTrace();
 		}
 	}
 
 	static Response processRequest(Request req) throws IOException {
-		logger.info("processing request");
 		Response response = new Response();
 		if (req.command == null) {
 			response.response = "invalid command";
