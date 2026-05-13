@@ -1,1 +1,4 @@
 target/
+logs/
+archived_logs
+jkvs-server

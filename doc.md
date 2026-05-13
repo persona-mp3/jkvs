@@ -45,7 +45,7 @@ Concern:: Reading a whole index file into memory isn't always the best thing, so
     the set is simply an update, we don't append to the second file, but we just overwrite it.
     2. If there's a rm command, we simply remove it from the second file. 
     But this requires that we have two-files to read and write from, which at anytime could fail. 
-    While the main.log is fine and possibly correct, the append.log might not be.
+    While the main.log is fine and possibly crrect, the append.log might not be.
 
 
 3. Or when we want to compact, we can read the main.log file in reverse, and
@@ -68,67 +68,42 @@ would pose more risk, as the original log file is corrupted and data can't be
 replayed/rebuilt
 
 
+### Concurrency Design
+SO heres the thing, Reads in the db are primarily hashMapLookUps, so we don't or want to limit 
+the locks in this section.
+
+So we'll end up favouring writes, because IO operations to files or even networks are slower in general
+
+So we can have a writer or multiple writerrs locking the lookUpMap, but a single one writing to the file
+That way, we don't manage file concurrency. 
+
+I'm mapping how I would do this in Go to Java, but we'd want x amount of virtual-threads/go-routines, (we'll call them level-1)that write to the 
+map, and a single go-routine/thread (0-level) that writes to these files. The level-1 threads will all drop their values into the channel/queue
+<insert java equivalent> that 0-level owns. Once the level-1s have dropped it in the queue, they send their response back to the client. The queue 0level
+has and level1s interact with are non-blocking queues so they can just drop there and leave
+But the other issue is that if we have x amount of threads  nah  THOSE WERE WRONG, I got the order mixed up
+
+- Writes -> toLogFile ---lptr---> lookUpTable ---lptr---> indexFile
+
+So the bottleneck here for writes is at the LogFile, because discIO is slow
+Or could we 
+1. Every level-1 thread just write to the queue
+2. Level-0 thread does the fileIO first, locks the Map, writes to it, and then to the indexFile?
+
+But this looks like (JVM's Young Normal Generation Pause) because when this dude wants to write to the map, all threads must wait in place
+Idk if this is a good idea?
+
+Also we really dont know how much percentage of writes::read that we can balance so we can design the conccurency
+
+In this talk Jon Gjenset talks about [Concurrency Coordination](https://www.youtube.com/watch?v=tND-wBBZ8RY) as he goes to talk about 
+`cache-lines`, `mutexes` and `reader-writer-locks`
+One in particular that piques interest is the `left-right pad` coordination. The design is simple and performance seems reliable (i've not
+impl or used this before), , but idk if  thats the right tool here 
+and if Java gives access to that, or there's any up-to-date library there
+
+1. It's not yet clear how much of readers::writers the system will in GENERAL have, the concurrency design is important here
+
+SECONDLY is that for writes, how do we handle responses? Do we just say `YES WE SAVED IT` or `YES WE RMED IT`? because we 
+still need to reply to the clients, 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-username 0
-username 31
-username 49
-username 67
-username 85
-username 103
-username 121
-username 139
-username 157
-username 175
-username 210
-track 228
-track 264
-track 291
-
-
-If we started reading this index file from top
