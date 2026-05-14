@@ -14,14 +14,12 @@ import java.io.IOException;
 
 import java.net.Socket;
 
-// 1. Read form Stdin, 
-// 2. Write to the connection
 /**
- * Writer OWNS the outputStream. It only takes the connection to 
- * check if the connection has been closed, to make sure all resources ie 
- * stdin, gets closed after the client disconnects. Writer is not responsible 
+ * Writer OWNS the outputStream. It only takes the connection to
+ * check if the connection has been closed, to make sure all resources ie
+ * stdin, gets closed after the client disconnects. Writer is not responsible
  * for closing the connnection
- * */
+ */
 public class Writer implements Runnable {
 	OutputStream stream;
 	Socket conn;
@@ -65,10 +63,12 @@ public class Writer implements Runnable {
 		Request req = new Request(null, null, null);
 		switch (parsedInput.length) {
 			case 3:
-				req.command = JKVStore.SET_COMMAND;
-				req.key = parsedInput[1];
-				req.value = parsedInput[2];
-				return req;
+				if (parsedInput[0].equals(JKVStore.SET_COMMAND)) {
+					req.command = JKVStore.SET_COMMAND;
+					req.key = parsedInput[1];
+					req.value = parsedInput[2];
+					return req;
+				}
 
 			case 2:
 				if (parsedInput[0].equals(JKVStore.GET_COMMAND)) {
