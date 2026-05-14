@@ -2,13 +2,23 @@ package github.persona_mp3.lib.protocol;
 
 import github.persona_mp3.lib.JKVStore;
 
+import java.net.Socket;
+import java.io.DataInputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+
 public class Protocol {
 	private String DELIMETER = "\r\n"; // inspired frrom Redis RESP
+	private static Logger logger = LogManager.getLogger(Protocol.class);
 
 	public Request parseRequest(String raw) {
-		Request parsedRequest = new Request();
-		String[] req = raw.split("\r\n");
-		if (raw.contains(JKVStore.GET_COMMAND) && req.length == 2) {
+		Request parsedRequest = new Request(null, null, null);
+		String[] req = raw.split(DELIMETER);
+		// we ignore the other commands
+		if (raw.contains(JKVStore.GET_COMMAND) && req.length >=  2) {
 			parsedRequest.command = JKVStore.GET_COMMAND;
 			parsedRequest.key = req[1];
 			parsedRequest.isValid = true;
@@ -19,7 +29,7 @@ public class Protocol {
 			parsedRequest.value = req[2];
 			parsedRequest.isValid = true;
 			return parsedRequest;
-		} else if (raw.contains(JKVStore.REMOVE_COMMAND) && req.length == 2) {
+		} else if (raw.contains(JKVStore.REMOVE_COMMAND) && req.length >= 2) {
 			parsedRequest.command = JKVStore.REMOVE_COMMAND;
 			parsedRequest.key = req[1];
 			parsedRequest.isValid = true;
@@ -28,5 +38,44 @@ public class Protocol {
 
 		parsedRequest.isValid = false;
 		return parsedRequest;
+	}
+
+	public byte[] encodeRequest(Request req){
+		String str = String.format("%s\r\n%s\r\n%s", req.command, req.key, req.value);
+		byte[] raw = str.getBytes();
+		logger.debug("encoded request:  {}", req.toString());
+		// encode raw.length into 4bytes as bigEndian
+		ByteBuffer buffer = ByteBuffer.allocate(4 + raw.length);
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		buffer.putInt(raw.length);
+		buffer.put(raw);
+		return buffer.array();
+	}
+
+	public byte[] encodeResponse(String response){
+		byte[] raw = String.format("%s\r\n", response).getBytes();
+		ByteBuffer buffer = ByteBuffer.allocate(4 + raw.length);
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		buffer.putInt(raw.length);
+		buffer.put(raw);
+		return buffer.array();
+	}
+
+	public String readPacket(int maxPayload, Socket conn) throws Exception {
+		int packetSize = 0;
+		DataInputStream reader = new DataInputStream(conn.getInputStream());
+		packetSize = reader.readInt();
+		logger.info("packet size: {}", packetSize);
+		if (packetSize >= maxPayload) {
+			logger.warn("{} sent over max payload. Recvd={}, MaxPayload={}", conn.getRemoteSocketAddress(), packetSize, maxPayload);
+			// writer.println("payload too large\r\n");
+			return null;
+		}
+		// todo: refactor to allow buffer resuse
+		byte[] buffer = new byte[packetSize];
+		reader.readFully(buffer);
+		String raw = new String(buffer);
+		logger.debug("decoded response: {}", raw);
+		return raw;
 	}
 }

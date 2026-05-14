@@ -84,14 +84,14 @@ public class JKVStore {
 	}
 
 	public String get(String key) throws IOException {
-		logger.debug("get-command: {}", key);
+		logger.debug("get-command: {}, inMemSize: {}", key, memoryIndex.size());
 		if (!memoryIndex.containsKey(key)) {
 			logger.debug("memory index does not contain key={}", key);
 			return null;
 		}
 
 		long logPointer = memoryIndex.get(key);
-		logger.debug("log_pointer of key = {}", key);
+		logger.debug("log_pointer of key = {}, logPointer={}", key, logPointer);
 
 		RandomAccessFile raf = null;
 

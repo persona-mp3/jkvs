@@ -13,10 +13,17 @@ public class Request {
 
 	public String value;
 	/**
-	 * Helps to tell if the request recieved is not valid if none of the commands supported 
+	 * Helps to tell if the request recieved is not valid if none of the commands
+	 * supported
 	 * were found in the request body
-	 * */
+	 */
 	public boolean isValid;
+
+	public Request(String command, String key, String value) {
+		this.command = command;
+		this.key = key;
+		this.value = value;
+	}
 
 	@Override
 	public String toString() {

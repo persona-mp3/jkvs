@@ -41,11 +41,29 @@ public class Server {
 				Socket conn = listener.accept();
 				logger.info("accpeted connection from localAddr={}", conn.getRemoteSocketAddress());
 
-				handleConn(conn);
+				ConnectionHandler handler = new ConnectionHandler(conn);
+				Thread connThread = new Thread(handler);
+				connThread.start();
+				// handleConn(conn);
 			}
 		} catch (Exception err) {
 			logger.error("An error occured: {}", err.getMessage());
 			err.printStackTrace();
+		}
+	}
+
+	static class ConnectionHandler implements Runnable {
+		Socket conn;
+
+		public ConnectionHandler(Socket conn) {
+			this.conn = conn;
+		}
+
+		@Override
+		public void run() {
+			logger.debug("running connectionHandlerThread. ThreadId={}");
+			handleConn(this.conn);
+			logger.debug("running done");
 		}
 	}
 
@@ -54,38 +72,36 @@ public class Server {
 	 */
 	static void handleConn(Socket conn) {
 		String addr = conn.getRemoteSocketAddress().toString();
-		try (
-				DataInputStream reader = new DataInputStream(conn.getInputStream());
-				PrintWriter writer = new PrintWriter(conn.getOutputStream(), true);) {
+		try (OutputStream writer = conn.getOutputStream()) {
+
+			String rawRequest = "";
+			String response = "";
+			byte[] rawResponse = null;
 
 			while (conn.isConnected() && !conn.isClosed()) {
-				int packetSize = reader.readInt(); // by default reads in bigEndian
-				logger.info("header-size: {}", packetSize);
-
-				if (packetSize >= MAX_PAYLOAD_MB) {
-					logger.warn("{} sent over max payload. Recvd={}, MaxPayload={}", addr, packetSize, MAX_PAYLOAD_MB);
-					writer.println("payload too large\r\n");
+				rawRequest = protocol.readPacket(MAX_PAYLOAD_MB, conn);
+				if (rawRequest == null) {
+					logger.debug("nothing more to read from client");
 					return;
 				}
-
-				byte[] buffer = new byte[packetSize];
-				reader.readFully(buffer);
-				String raw = new String(buffer);
-				logger.info("recvd:: raw::{}", raw);
-
-				Request request = protocol.parseRequest(raw);
+				logger.debug("request_parsed:: {}", rawRequest);
+				Request request = protocol.parseRequest(rawRequest);
 
 				if (!request.isValid) {
 					logger.info("request recvd is not valid");
-					writer.println("invalid request\r\n");
-					return;
+					rawResponse = protocol.encodeResponse("what do you mean?");
+					writer.write(rawResponse);
+					continue;
 				}
 
-				String response = processRequest(request);
-				writer.println(String.format("%s\r\n", response));
-				logger.info("wrote response to client");
+				response = processRequest(request);
+				rawResponse = protocol.encodeResponse(response);
+
+				writer.write(rawResponse);
+				logger.info("wrote response , {} to client", response);
 
 			}
+
 		} catch (EOFException err) {
 			logger.warn("Client has disconnected: {}", err.getMessage());
 			return;

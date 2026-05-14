@@ -141,6 +141,7 @@ public class JKVLib {
 				String formattedLog = record + "\r\n";
 				raf.write(formattedLog.getBytes());
 				appendToIndexFile(index, key, offset);
+				offset = raf.getFilePointer();
 			}
 
 			logger.info("New log size: {}", raf.length());
