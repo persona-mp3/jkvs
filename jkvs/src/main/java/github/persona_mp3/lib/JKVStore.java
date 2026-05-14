@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.Arrays;
+
+import java.util.concurrent.ConcurrentHashMap;
+
 import java.nio.file.Paths;
 import java.nio.file.*;
 
@@ -28,7 +31,8 @@ public class JKVStore {
 	/// Usage: jkvs rm <key>
 	public static final String REMOVE_COMMAND = "rm";
 
-	private HashMap<String, Long> memoryIndex = new HashMap<>();
+	// private HashMap<String, Long> memoryIndex = new HashMap<>();
+	private ConcurrentHashMap<String, Long> memoryIndex = new ConcurrentHashMap<>();
 
 	private final Path LOG_DIR = Paths.get("logs");
 	private final Path LOG_FILE = LOG_DIR.resolve("log.wal");
