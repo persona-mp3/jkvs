@@ -2,8 +2,7 @@ package github.persona_mp3.lib;
 
 import github.persona_mp3.lib.JKVStore;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.BlockingQueue;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -28,11 +27,11 @@ public class Writer implements Runnable {
 	// channels instead of ConcurrrentLinkedQueue
 	//
 	// Notes: Look for a way to shutdown thread or signal with the main thread
-	ConcurrentLinkedQueue<JKeyValue> queue; 
+	BlockingQueue<JKeyValue> queue; 
 	JKVStore store;
 	private Logger logger = LogManager.getLogger(Writer.class);
 
-	public Writer(ConcurrentLinkedQueue<JKeyValue> queue, JKVStore store) {
+	public Writer(BlockingQueue<JKeyValue> queue, JKVStore store) {
 		this.queue = queue;
 		this.store = store;
 	}
@@ -41,7 +40,7 @@ public class Writer implements Runnable {
 	private void main() throws Exception {
 		JKeyValue entry = null;
 		while (true) {
-			entry = this.queue.poll();
+			entry = this.queue.take();
 			logger.debug("recvd_entry:: {}", entry);
 			store.set(entry.key, entry.value);
 		}
