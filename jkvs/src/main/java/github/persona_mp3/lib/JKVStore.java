@@ -1,18 +1,23 @@
 package github.persona_mp3.lib;
 
+import github.persona_mp3.Std;
+import github.persona_mp3.lib.types.WriteRequest;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.HashMap;
 import java.util.Arrays;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Future;
 
 import java.nio.file.Paths;
 import java.nio.file.*;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import github.persona_mp3.Std;
 
 public class JKVStore {
 	Std std = new Std();
@@ -31,8 +36,12 @@ public class JKVStore {
 	/// Usage: jkvs rm <key>
 	public static final String REMOVE_COMMAND = "rm";
 
-	// private HashMap<String, Long> memoryIndex = new HashMap<>();
 	private ConcurrentHashMap<String, Long> memoryIndex = new ConcurrentHashMap<>();
+	private BlockingQueue<WriteRequest> queue;
+	private ExecutorService writerThread;
+
+	// public JKVStore(BlockingQueue<WriteRequest>) {
+	// }
 
 	private final Path LOG_DIR = Paths.get("logs");
 	private final Path LOG_FILE = LOG_DIR.resolve("log.wal");
@@ -146,6 +155,54 @@ public class JKVStore {
 
 		memoryIndex.put(key, logPointer);
 		return key;
+	}
+
+	public void async_init(BlockingQueue<WriteRequest> queue, ExecutorService writerThread) throws IOException {
+		logger.info("async_init:: starting");
+		this.queue = queue;
+		this.writerThread = writerThread;
+		init();
+		async_writer();
+	}
+
+	// todo: remove it from the core engine or make it into a seperate module so the
+	// thread lives, THis is just to see if we can impl the single-writer
+	// as long as the server
+	//
+	// Problem, theres no way of communicating the result back to the caller thread
+	public void async_writer() throws IOException {
+		logger.info("async writer active");
+		writerThread.submit(() -> {
+			while (!Thread.currentThread().isInterrupted()) {
+				try {
+					WriteRequest req = queue.take();
+					if (req.command.equals(SET_COMMAND)) {
+						logger.info("async_writer:: writing set command {}:{}", req.key, req.value);
+						req.result.complete(set(req.key, req.value));
+						// req.result.complete("set_key_resolved");
+					} else if (req.command.equals(REMOVE_COMMAND)) {
+						logger.info("async_writer:: writing rming command {}:{}", req.key);
+						req.result.complete(remove(req.key));
+						// req.result.complete("remove_key_resolved");
+					}
+				} catch (InterruptedException err) {
+					logger.error("writer interrupted");
+					return;
+				} catch (Exception err) {
+					logger.error("writer error. Reason: {}", err.getMessage());
+					err.printStackTrace();
+					return;
+				}
+			}
+		});
+	}
+
+	public void dropItem(WriteRequest req) {
+		// todo: use timeouts
+		// And we cant call async_writer() here again, because why? we'd have two thread
+		// instances runnning
+		// async_writer is called during startup
+		queue.offer(req);
 	}
 
 }

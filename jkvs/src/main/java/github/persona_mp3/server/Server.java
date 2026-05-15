@@ -1,6 +1,7 @@
 package github.persona_mp3.server;
 
 import github.persona_mp3.lib.JKVStore;
+import github.persona_mp3.lib.types.WriteRequest;
 import github.persona_mp3.lib.protocol.Protocol;
 import github.persona_mp3.lib.protocol.Request;
 
@@ -11,6 +12,12 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ExecutionException;
 
 import picocli.CommandLine;
 
@@ -31,19 +38,31 @@ public class Server {
 		int port = config.port;
 		logger.info("Initialising database");
 
+		/** Creates virtual threads in a threadpool */
+		// ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT,
+		// Thread.ofVirtual().factory());
+
 		try (
 				ServerSocket listener = new ServerSocket(port);) {
 
-			store.init();
+			// store.init();
+			// BlockingQueue<WriteRequest> queue = new LinkedBlockingQueue<>();
+			ExecutorService clientExecutor = Executors.newVirtualThreadPerTaskExecutor();
+			BlockingQueue<WriteRequest> queue = new LinkedBlockingQueue<>();
+			ExecutorService writerThread = Executors.newSingleThreadExecutor();
+			store.async_init(queue, writerThread);
+
 			logger.info("tcp-server listening tcp://{}:{}", addr, port);
 
 			while (true) {
 				Socket conn = listener.accept();
-				logger.info("accpeted connection from localAddr={}", conn.getRemoteSocketAddress());
+				logger.info("accepted connection from localAddr={}", conn.getRemoteSocketAddress());
 
-				ConnectionHandler handler = new ConnectionHandler(conn);
-				Thread connThread = new Thread(handler);
-				connThread.start();
+				ConnectionHandler handler = new ConnectionHandler(conn, queue);
+
+				clientExecutor.submit(handler);
+				// Thread connThread = new Thread(handler);
+				// connThread.start();
 				// handleConn(conn);
 			}
 		} catch (Exception err) {
@@ -54,15 +73,20 @@ public class Server {
 
 	static class ConnectionHandler implements Runnable {
 		Socket conn;
+		// Only contains write-requests
+		BlockingQueue<WriteRequest> queue;
+		// Connection handler should also take a blocking queue they can
+		// drop write-requests to
 
-		public ConnectionHandler(Socket conn) {
+		public ConnectionHandler(Socket conn, BlockingQueue<WriteRequest> queue) {
 			this.conn = conn;
+			this.queue = queue;
 		}
 
 		@Override
 		public void run() {
 			logger.debug("running connectionHandlerThread. ThreadId={}");
-			handleConn(this.conn);
+			handleConn(this.conn, this.queue);
 			logger.debug("running done");
 		}
 	}
@@ -70,7 +94,7 @@ public class Server {
 	/**
 	 * [header-length(4bytes)][content]
 	 */
-	static void handleConn(Socket conn) {
+	static void handleConn(Socket conn, BlockingQueue<WriteRequest> queue) {
 		String addr = conn.getRemoteSocketAddress().toString();
 		try (OutputStream writer = conn.getOutputStream()) {
 
@@ -84,6 +108,7 @@ public class Server {
 					logger.debug("nothing more to read from client");
 					return;
 				}
+
 				logger.debug("request_parsed:: {}", rawRequest);
 				Request request = protocol.parseRequest(rawRequest);
 
@@ -117,27 +142,56 @@ public class Server {
 
 	}
 
+	// static String processRequest(Request req) throws IOException {
+	// String response = "";
+	// if (req.command == null) {
+	// response = "invalid command";
+	// return response;
+	// }
+	// switch (req.command) {
+	// case JKVStore.GET_COMMAND:
+	// response = store.get(req.key);
+	// return response;
+	//
+	// case JKVStore.SET_COMMAND:
+	// response = store.set(req.key, req.value);
+	// return response;
+	//
+	// case JKVStore.REMOVE_COMMAND:
+	// response = store.remove(req.key);
+	// return response;
+	// }
+	//
+	// response = "unknown command";
+	// return response;
+	// }
 	static String processRequest(Request req) throws IOException {
-		String response = "";
-		if (req.command == null) {
-			response = "invalid command";
-			return response;
+		if (req.command.equals(JKVStore.SET_COMMAND) || req.command.equals(JKVStore.REMOVE_COMMAND)) {
+			WriteRequest wq = new WriteRequest(req.command, req.key, req.value);
+			// todo: implement a poision_pill to tell the thread to stop reading
+			// will need to do some sort of Future/await thing here, not sure yet?
+			try {
+				store.dropItem(wq);
+				logger.info("waiting for response...");
+				return wq.result.get();
+			} catch (ExecutionException err) {
+				logger.error("ExecutionException error occured when processingRequsest\nReason: {}", err.getMessage());
+				err.printStackTrace();
+				return "service is down, we are sorry ";
+			} catch (InterruptedException err) {
+				logger.error("InterruptedException rror occured when processingRequsest\nReason: {}", err.getMessage());
+				err.printStackTrace();
+				return "service is down, we are sorry ";
+
+			} catch (Exception err) {
+				logger.fatal("Unexpected error occured when processingRequsest\nReason: {}", err.getMessage());
+				err.printStackTrace();
+				return "service is down, we are sorry ";
+			}
+		} else if (req.command.equals(JKVStore.GET_COMMAND)) {
+			return store.get(req.key);
 		}
-		switch (req.command) {
-			case JKVStore.GET_COMMAND:
-				response = store.get(req.key);
-				return response;
 
-			case JKVStore.SET_COMMAND:
-				response = store.set(req.key, req.value);
-				return response;
-
-			case JKVStore.REMOVE_COMMAND:
-				response = store.remove(req.key);
-				return response;
-		}
-
-		response = "unknown command";
-		return response;
+		return "";
 	}
 }
