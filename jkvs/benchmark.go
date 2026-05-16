@@ -62,70 +62,111 @@ func main() {
 func worker(id int, requests int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	var conn net.Conn
-	var err error
+	conn, err := net.DialTimeout(
+		"tcp",
+		target,
+		5*time.Second,
+	)
 
-	connect := func() error {
-		conn, err = net.DialTimeout(
-			"tcp",
-			target,
-			5*time.Second,
-		)
-
-		return err
-	}
-
-	if err := connect(); err != nil {
-		log.Printf("worker %d connect error: %v\n", id, err)
+	if err != nil {
+		log.Printf("worker %d could not connect: %v\n", id, err)
 		failed.Add(int64(requests))
 		return
 	}
-
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-
 	packet := toPacket("set\r\nresults\r\nodd")
+	buffer := make([]byte, 1024) // Allocated outside loop for performance
 
 	for i := 0; i < requests; i++ {
 
-		// reconnect if needed
-		if conn == nil {
-			if err := connect(); err != nil {
-				failed.Add(1)
-				continue
-			}
-
-			reader = bufio.NewReader(conn)
-		}
-
+		// 1. Write request
 		_, err := conn.Write(packet)
-
 		if err != nil {
 			failed.Add(1)
-
-			conn.Close()
-			conn = nil
-
-			continue
+			return // Exit worker on error (no reconnect)
 		}
 
-		buffer := make([]byte, 1024)
-
+		// 2. Read response
 		_, err = reader.Read(buffer)
-
 		if err != nil && !errors.Is(err, io.EOF) {
 			failed.Add(1)
-
-			conn.Close()
-			conn = nil
-
-			continue
+			return // Exit worker on error (no reconnect)
 		}
 
 		success.Add(1)
 	}
 }
+
+
+// func worker(id int, requests int, wg *sync.WaitGroup) {
+// 	defer wg.Done()
+//
+// 	var conn net.Conn
+// 	var err error
+//
+// 	connect := func() error {
+// 		conn, err = net.DialTimeout(
+// 			"tcp",
+// 			target,
+// 			5*time.Second,
+// 		)
+//
+// 		return err
+// 	}
+//
+// 	if err := connect(); err != nil {
+// 		log.Printf("worker %d connect error: %v\n", id, err)
+// 		failed.Add(int64(requests))
+// 		return
+// 	}
+//
+// 	defer conn.Close()
+//
+// 	reader := bufio.NewReader(conn)
+//
+// 	packet := toPacket("set\r\nresults\r\nodd")
+//
+// 	for i := 0; i < requests; i++ {
+//
+// 		// reconnect if needed
+// 		if conn == nil {
+// 			if err := connect(); err != nil {
+// 				failed.Add(1)
+// 				continue
+// 			}
+//
+// 			reader = bufio.NewReader(conn)
+// 		}
+//
+// 		_, err := conn.Write(packet)
+//
+// 		if err != nil {
+// 			failed.Add(1)
+//
+// 			conn.Close()
+// 			conn = nil
+//
+// 			continue
+// 		}
+//
+// 		buffer := make([]byte, 1024)
+//
+// 		_, err = reader.Read(buffer)
+//
+// 		if err != nil && !errors.Is(err, io.EOF) {
+// 			failed.Add(1)
+//
+// 			conn.Close()
+// 			conn = nil
+//
+// 			continue
+// 		}
+//
+// 		success.Add(1)
+// 	}
+// }
 // func worker(id int, requests int, wg *sync.WaitGroup) {
 // 	defer wg.Done()
 //
@@ -167,7 +208,7 @@ func worker(id int, requests int, wg *sync.WaitGroup) {
 //
 // 		success.Add(1)
 // 	}
-}
+// }
 
 func toPacket(msg string) []byte {
 	size := len(msg)

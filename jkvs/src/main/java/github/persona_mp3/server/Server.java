@@ -42,6 +42,7 @@ public class Server {
 		// ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT,
 		// Thread.ofVirtual().factory());
 
+		int totalConns = 0;
 		try (
 				ServerSocket listener = new ServerSocket(port);) {
 
@@ -58,6 +59,8 @@ public class Server {
 				try {
 					// ConnectionHandler handler = new ConnectionHandler(conn, queue);
 					Socket conn = listener.accept();
+					totalConns += 1;
+					System.out.printf("total_connections:: %d \n", totalConns);
 					Handler handler = new Handler(conn, store);
 
 					clientExecutor.submit(handler);
