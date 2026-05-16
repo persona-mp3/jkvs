@@ -58,17 +58,25 @@ func main() {
 	log.Printf("rps: %.2f/sec\n", rps)
 }
 
+
 func worker(id int, requests int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	conn, err := net.DialTimeout(
-		"tcp",
-		target,
-		5*time.Second,
-	)
+	var conn net.Conn
+	var err error
 
-	if err != nil {
-		log.Printf("worker %d could not connect: %v\n", id, err)
+	connect := func() error {
+		conn, err = net.DialTimeout(
+			"tcp",
+			target,
+			5*time.Second,
+		)
+
+		return err
+	}
+
+	if err := connect(); err != nil {
+		log.Printf("worker %d connect error: %v\n", id, err)
 		failed.Add(int64(requests))
 		return
 	}
@@ -81,24 +89,84 @@ func worker(id int, requests int, wg *sync.WaitGroup) {
 
 	for i := 0; i < requests; i++ {
 
-		// write request
-		if _, err := conn.Write(packet); err != nil {
-			failed.Add(1)
-			return
+		// reconnect if needed
+		if conn == nil {
+			if err := connect(); err != nil {
+				failed.Add(1)
+				continue
+			}
+
+			reader = bufio.NewReader(conn)
 		}
 
-		// read response
+		_, err := conn.Write(packet)
+
+		if err != nil {
+			failed.Add(1)
+
+			conn.Close()
+			conn = nil
+
+			continue
+		}
+
 		buffer := make([]byte, 1024)
 
-		_, err := reader.Read(buffer)
+		_, err = reader.Read(buffer)
 
 		if err != nil && !errors.Is(err, io.EOF) {
 			failed.Add(1)
-			return
+
+			conn.Close()
+			conn = nil
+
+			continue
 		}
 
 		success.Add(1)
 	}
+}
+// func worker(id int, requests int, wg *sync.WaitGroup) {
+// 	defer wg.Done()
+//
+// 	conn, err := net.DialTimeout(
+// 		"tcp",
+// 		target,
+// 		5*time.Second,
+// 	)
+//
+// 	if err != nil {
+// 		log.Printf("worker %d could not connect: %v\n", id, err)
+// 		failed.Add(int64(requests))
+// 		return
+// 	}
+//
+// 	defer conn.Close()
+//
+// 	reader := bufio.NewReader(conn)
+//
+// 	packet := toPacket("set\r\nresults\r\nodd")
+//
+// 	for i := 0; i < requests; i++ {
+//
+// 		// write request
+// 		if _, err := conn.Write(packet); err != nil {
+// 			failed.Add(1)
+// 			return
+// 		}
+//
+// 		// read response
+// 		buffer := make([]byte, 1024)
+//
+// 		_, err := reader.Read(buffer)
+//
+// 		if err != nil && !errors.Is(err, io.EOF) {
+// 			failed.Add(1)
+// 			return
+// 		}
+//
+// 		success.Add(1)
+// 	}
 }
 
 func toPacket(msg string) []byte {
