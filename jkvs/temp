@@ -71,3 +71,26 @@ Executed in   22.08 secs    fish           external
 
 
 32768	60999
+
+
+
+---- WITHOUT IO ------
+
+
+jkvs::jkvs (concurrency-refactor) | time ./tester.py
+Completed 100000 requests
+
+________________________________________________________
+Executed in    4.72 secs    fish           external
+   usr time    0.34 secs    0.00 micros    0.34 secs
+   sys time    1.01 secs  932.00 micros    1.01 secs
+
+  jkvs::jkvs (concurrency-refactor) | time ./tester.py
+Completed 100000 requests
+
+________________________________________________________
+Executed in    4.57 secs    fish           external
+   usr time    0.32 secs  551.00 micros    0.32 secs
+   sys time    1.13 secs  422.00 micros    1.13 secs
+
+  jkvs::jkvs (concurrency-refactor) |

@@ -55,12 +55,17 @@ public class Server {
 			logger.info("tcp-server listening tcp://{}:{}", addr, port);
 
 			while (true) {
-				Socket conn = listener.accept();
-				logger.info("accepted connection from localAddr={}", conn.getRemoteSocketAddress());
+				try {
+					// ConnectionHandler handler = new ConnectionHandler(conn, queue);
+					Socket conn = listener.accept();
+					Handler handler = new Handler(conn, store);
 
-				ConnectionHandler handler = new ConnectionHandler(conn, queue);
-
-				clientExecutor.submit(handler);
+					clientExecutor.submit(handler);
+					logger.info("accepted connection from localAddr={}", conn.getRemoteSocketAddress());
+				} catch (Exception err) {
+					logger.warn("did we close the connection????:: {}", err.getMessage());
+					err.printStackTrace();
+				}
 				// Thread connThread = new Thread(handler);
 				// connThread.start();
 				// handleConn(conn);
@@ -71,38 +76,47 @@ public class Server {
 		}
 	}
 
-	static class ConnectionHandler implements Runnable {
-		Socket conn;
-		// Only contains write-requests
-		BlockingQueue<WriteRequest> queue;
-		// Connection handler should also take a blocking queue they can
-		// drop write-requests to
-
-		public ConnectionHandler(Socket conn, BlockingQueue<WriteRequest> queue) {
-			this.conn = conn;
-			this.queue = queue;
-		}
-
-		@Override
-		public void run() {
-			logger.debug("running connectionHandlerThread. ThreadId={}");
-			handleConn(this.conn, this.queue);
-			logger.debug("running done");
-		}
-	}
+	// static class ConnectionHandler implements Runnable {
+	// Socket conn;
+	// // Only contains write-requests
+	// BlockingQueue<WriteRequest> queue;
+	// // Connection handler should also take a blocking queue they can
+	// // drop write-requests to
+	//
+	// public ConnectionHandler(Socket conn, BlockingQueue<WriteRequest> queue) {
+	// this.conn = conn;
+	// this.queue = queue;
+	// }
+	//
+	// @Override
+	// public void run() {
+	// System.out.println("DO YOU KNOW WHO ELSE HAS A RUN METHOD?");
+	// logger.debug("running connectionHandlerThread. ThreadId={}");
+	// handleConn(this.conn, this.queue);
+	// logger.debug("running done");
+	// System.out.println("DONE_DONE_DONe");
+	// }
+	// }
 
 	/**
 	 * [header-length(4bytes)][content]
 	 */
+
 	static void handleConn(Socket conn, BlockingQueue<WriteRequest> queue) {
+
+		System.out.println("GOT EM_GOT_EMM");
 		String addr = conn.getRemoteSocketAddress().toString();
-		try (OutputStream writer = conn.getOutputStream()) {
+		try (
+				// Socket socket = conn;
+				OutputStream writer = conn.getOutputStream();
+				DataInputStream reader = new DataInputStream(conn.getInputStream());) {
 
 			String rawRequest = "";
 			String response = "";
 			byte[] rawResponse = null;
 
 			while (conn.isConnected() && !conn.isClosed()) {
+				// rawRequest = protocol.readFromStream(MAX_PAYLOAD_MB, reader);
 				rawRequest = protocol.readPacket(MAX_PAYLOAD_MB, conn);
 				if (rawRequest == null) {
 					logger.debug("nothing more to read from client");
@@ -126,20 +140,21 @@ public class Server {
 				logger.info("wrote response , {} to client", response);
 
 			}
+			System.out.println("broken outta hot loop");
 
 		} catch (EOFException err) {
 			logger.warn("Client has disconnected: {}", err.getMessage());
-			return;
+			err.printStackTrace();
 		} catch (SocketException err) {
 			logger.warn("Client forcefully disconnected: {}", err.getMessage());
-			return;
+			err.printStackTrace();
 
 		} catch (Exception err) {
 			logger.error("Unexpected error while handling conn addr={}, reason: {}", addr, err.getMessage());
 			err.printStackTrace();
-			return;
 		}
 
+		System.out.println("WHAT?");
 	}
 
 	// static String processRequest(Request req) throws IOException {
@@ -174,6 +189,7 @@ public class Server {
 				store.dropItem(wq);
 				logger.info("waiting for response...");
 				return wq.result.get();
+				// return "response_response";
 			} catch (ExecutionException err) {
 				logger.error("ExecutionException error occured when processingRequsest\nReason: {}", err.getMessage());
 				err.printStackTrace();

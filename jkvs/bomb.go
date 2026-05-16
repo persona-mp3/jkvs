@@ -1,3 +1,62 @@
+// package main
+//
+// import (
+// 	"encoding/binary"
+// 	"errors"
+// 	"io"
+// 	"log"
+// 	"net"
+// 	"sync"
+// 	// "time"
+// )
+//
+// const max_threads = 80 * 1000
+//
+// func main() {
+// 	log.Println("max_connections::", max_threads)
+// 	wg := sync.WaitGroup{}
+// 	wg.Add(max_threads)
+// 	for i := range max_threads {
+// 		go func() {
+// 			defer wg.Done()
+// 			conn, err := net.Dial("tcp", "localhost:9090")
+// 			if err != nil {
+// 				log.Println("could not connect for conn->", i, err)
+// 				return
+// 			}
+//
+// 			defer conn.Close()
+//
+// 			buffer := make([]byte, 1024)
+// 			if _, err := conn.Write(toPacket("set\r\nresults\r\nodd")); err != nil {
+// 				log.Println("could not write to server:: ", err)
+// 				return
+// 			}
+//
+// 			if _, err := conn.Read(buffer); err != nil && !errors.Is(err, io.EOF) {
+// 				log.Printf("Error: %s, At:: %d\n", err, i)
+// 				return
+// 			}
+//
+// 			// log.Printf("response:: %s\n", string(buffer))
+// 			// Vjkvs::jkvs (concurrency-refactor) | git remote set-url origin git@github.com:s-arahmaria/QuizApp.git
+// 			//
+//
+// 		}()
+// 	}
+//
+// 	wg.Wait()
+// }
+//
+// func toPacket(msg string) []byte {
+// 	size := len([]byte(msg))
+// 	buffer := make([]byte, 4)
+// 	binary.BigEndian.PutUint32(buffer, uint32(size))
+// 	buffer = append(buffer, []byte(msg)...)
+//
+// 	return buffer
+// }
+
 package main
 
 import (
@@ -7,54 +66,110 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
-const max_threads = 100 * 1000
+const (
+	concurrentConnections = 10000
+	totalRequests         = 500000
+	target                = "localhost:9090"
+)
+
+var (
+	success atomic.Int64
+	failed  atomic.Int64
+)
 
 func main() {
-	log.Println("max_connections::", max_threads);
+	log.Printf(
+		"starting load test -> workers=%d total=%d",
+		concurrentConnections,
+		totalRequests,
+	)
+
+	start := time.Now()
+
+	jobs := make(chan int, totalRequests)
+
 	wg := sync.WaitGroup{}
-	wg.Add(max_threads)
-	for i := range max_threads {
-		go func() {
-			defer wg.Done()
-			conn, err := net.Dial("tcp", "localhost:9090")
-			if err != nil {
-				log.Println("could not connect for conn->", i, err)
-				return
-			}
 
-			defer conn.Close()
+	for w := 0; w < concurrentConnections; w++ {
+		wg.Add(1)
 
-			buffer := make([]byte, 1024)
-			if _, err := conn.Write(toPacket("set\r\nresults\r\nodd")); err != nil {
-				log.Println("could not write to server:: ", err)
-				return
-			}
-
-			if _, err := conn.Read(buffer); err != nil  && !errors.Is(err, io.EOF){
-				log.Printf("Error: %s, At:: %d\n", err, i)
-				return
-			}
-
-			// log.Printf("response:: %s\n", string(buffer))
-			// Vjkvs::jkvs (concurrency-refactor) | git remote set-url origin git@github.com:s-arahmaria/QuizApp.git
-			// 
-
-		}()
+		go worker(jobs, &wg)
 	}
 
-	wg.Wait()
-	println("done with bombing server")
+	for i := 0; i < totalRequests; i++ {
+		jobs <- i
+	}
 
+	close(jobs)
+
+	wg.Wait()
+
+	duration := time.Since(start)
+
+	totalSuccess := success.Load()
+	totalFailed := failed.Load()
+
+	rps := float64(totalSuccess) / duration.Seconds()
+
+	log.Println("============ RESULTS ============")
+	log.Println("duration:", duration)
+	log.Println("success:", totalSuccess)
+	log.Println("failed:", totalFailed)
+	log.Printf("rps: %.2f/sec\n", rps)
+}
+
+func worker(jobs <-chan int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for range jobs {
+		conn, err := net.DialTimeout(
+			"tcp",
+			target,
+			5*time.Second,
+		)
+
+		if err != nil {
+			failed.Add(1)
+			continue
+		}
+
+		buffer := make([]byte, 1024)
+
+		_, err = conn.Write(
+			toPacket("set\r\nresults\r\nodd"),
+		)
+
+		if err != nil {
+			failed.Add(1)
+			conn.Close()
+			continue
+		}
+
+		_, err = conn.Read(buffer)
+
+		if err != nil && !errors.Is(err, io.EOF) {
+			failed.Add(1)
+			conn.Close()
+			continue
+		}
+
+		success.Add(1)
+
+		conn.Close()
+	}
 }
 
 func toPacket(msg string) []byte {
-	size := len([]byte(msg))
+	size := len(msg)
+
 	buffer := make([]byte, 4)
 	binary.BigEndian.PutUint32(buffer, uint32(size))
+
 	buffer = append(buffer, []byte(msg)...)
 
 	return buffer
 }
-
