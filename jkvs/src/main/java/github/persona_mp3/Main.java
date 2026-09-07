@@ -8,8 +8,6 @@ import org.apache.logging.log4j.LogManager;
 
 import github.persona_mp3.lib.*;
 
-// jkvs::jkvs (refactor) | java -cp target/jkvs-1.0-SNAPSHOT.jar github.persona_mp3.Main
-
 class Main {
 	static String VERSION = "0.0.1";
 	static String VERSION_COMMAND = "-V";

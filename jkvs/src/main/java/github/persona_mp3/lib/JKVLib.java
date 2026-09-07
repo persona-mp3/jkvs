@@ -45,7 +45,6 @@ public class JKVLib {
 
 	public ConcurrentHashMap<String, Long> rebuildIndex(Path indexFile, String delimiter) throws IOException {
 		logger.info("Rebuilding index");
-		// HashMap<String, Long> memoryIndex = new HashMap<>();
 		ConcurrentHashMap<String, Long> memoryIndex = new ConcurrentHashMap<>();
 
 		BufferedReader br = null;

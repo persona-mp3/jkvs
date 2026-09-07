@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 
 import java.io.*;
 import java.net.Socket;
-import java.io.EOFException;
 
 import java.util.concurrent.ExecutionException;
 

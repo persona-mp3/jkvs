@@ -60,8 +60,7 @@ public class Server {
 		try (ServerSocket listener = new ServerSocket(config.port, MAX_BACKLOG)) {
 
 			// Spawned for each new client. Since these are virtual threads, they are
-			// lightweight
-			// and less taxing than platform OSThreads
+			// lightweight and less taxing than platform OSThreads
 			ExecutorService clientExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 			// All writeRequests involving <set> and <rm> are dropped here by clients

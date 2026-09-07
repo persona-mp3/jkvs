@@ -32,16 +32,9 @@ public class JKVStore {
 	/// Usage: jkvs rm <key>
 	public static final String REMOVE_COMMAND = "rm";
 
-	// todo(persona) not sure if this WILL be a issue, but we can't gaurantee
-	// callers would not modify it.
-	// Sending out copies on each update is also hard too to track
-	// Compared to rust, we could just give an immutableRef out
 	private ConcurrentHashMap<String, String> memoryIndex = new ConcurrentHashMap<>();
 	private BlockingQueue<WriteRequest> queue;
 	private ExecutorService writerThread;
-
-	// public JKVStore(BlockingQueue<WriteRequest>) {
-	// }
 
 	private final Path LOG_DIR;
 	private final Path LOG_FILE;
@@ -51,18 +44,25 @@ public class JKVStore {
 		this(Paths.get("logs"));
 	}
 
-	/** For testing only — injects a custom log directory so tests can use a temp dir. */
+	/**
+	 * For testing only — injects a custom log directory so tests can use a temp
+	 * dir.
+	 */
 	public JKVStore(Path logDir) {
 		this.LOG_DIR = logDir;
 		this.LOG_FILE = logDir.resolve("log.wal");
 		this.INDEX_FILE = logDir.resolve("index");
 	}
 
-	/** For testing only — also redirects the archived logs directory into the temp dir. */
+	/**
+	 * For testing only — also redirects the archived logs directory into the temp
+	 * dir.
+	 */
 	public JKVStore(Path logDir, Path archivedLogsDir) {
 		this(logDir);
 		this.jkvlib.ARCHIVED_LOGS_DIR = archivedLogsDir;
 	}
+
 	private long MAX_SIZE_MB = 1 * 1024 * 1024;
 
 	private Logger logger = LogManager.getLogger(JKVStore.class);
@@ -131,8 +131,6 @@ public class JKVStore {
 		return key;
 	}
 
-	// todo(persona_mp3) not sure if we could collapse rawSet and rawRemove into
-	// one operation.
 	/**
 	 * rawSet updates the inMemoryIndex with the key, and logPointer and should only
 	 * be used by async implementations or callers handling IO Operations otherwise
@@ -159,13 +157,6 @@ public class JKVStore {
 		return key;
 	}
 
-	// public String rawGet(String key) {
-	// if (!memoryIndex.containsKey(key)) {
-	// std.printf("%s not found\n", key);
-	// return null;
-	// }
-	// }
-
 	public void async_init(BlockingQueue<WriteRequest> queue, ExecutorService writerThread) throws IOException {
 		logger.info("async_init:: starting");
 		this.queue = queue;
@@ -174,12 +165,18 @@ public class JKVStore {
 		async_writer();
 	}
 
-	// todo: remove it from the core engine or make it into a seperate module so the
-	// thread lives, THis is just to see if we can impl the single-writer
-	// as long as the server
-	//
-	// Problem, theres no way of communicating the result back to the caller thread
-
+	/**
+	 * <p>
+	 * async_writer receives write requests from the blocking queue.
+	 * </p>
+	 * <p>
+	 * Each request made to the JKVS is dropped into the blocking queue by a caller,
+	 * and is processed here. When done, the result is communicated via the Future
+	 * property of the request.
+	 * </p>
+	 *
+	 * TODO: There's no current mechanism for restarting this writer
+	 */
 	public void async_writer() throws IOException {
 		RandomAccessFile walFile = new RandomAccessFile(LOG_FILE.toString(), "rw");
 		RandomAccessFile indexFile = new RandomAccessFile(INDEX_FILE.toString(), "rw");
@@ -200,9 +197,8 @@ public class JKVStore {
 						lib.appendToIndex(req.key, logPointer);
 						rawSet(req.key, req.value);
 
-						// req.result.complete(set(req.key, req.value));
 						req.result.complete(req.value);
-						logger.debug("sent response");
+						logger.debug("successfully sent response to client");
 					} else if (req.command.equals(REMOVE_COMMAND)) {
 						logger.info("async_writer:: writing rming command {}:{}", req.key);
 						long logPointer = lib.appendToLog(REMOVE_COMMAND, req.key, req.value);
@@ -229,6 +225,10 @@ public class JKVStore {
 		return memoryIndex.get(key);
 	}
 
+	/**
+	 * dropItem appends a request to the write queue for the writer to handle. It
+	 * returns the result to the caller via Futures
+	 */
 	public void dropItem(WriteRequest req) {
 		// todo: use timeouts
 		// And we cant call async_writer() here again, because why? we'd have two thread
